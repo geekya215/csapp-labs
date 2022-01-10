@@ -371,13 +371,13 @@ int logicalNeg(int x) {
  */
 int howManyBits(int x) {
   /*
-   * if x is negative, reverse all bit, and simulate
-   * binary serach recursive function
+   * if x is negative, reverse all bits, and simulate
+   * binary search recursive function
    */
   int mask = x >> 31;
   x = (mask&~x) | (~mask&x);
   // if the left half bits is not equal to 0, the right half is
-  // reversed, and then continue searching the left half, and vice versa
+  // reversed, and then continue searching the left half, vice versa
   int b16 = !!(x>>16) << 4;
   x >>= b16;
   int b8  = !!(x>>8) << 3;
