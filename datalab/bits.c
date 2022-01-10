@@ -143,7 +143,15 @@ NOTES:
  *   Rating: 1
  */
 int bitXor(int x, int y) {
-  return 2;
+  /*
+   * De Morgan's laws
+   * ~(x|y) = ~x & ~y
+   * ~(x&y) = ~x | ~y
+   *
+   * x^y -> (x&~y) | (~x&y)
+   *     -> ~(~(x&~y) & ~(~x&y))
+   */
+  return ~(~(x&~y) & ~(~x&y));
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -152,9 +160,17 @@ int bitXor(int x, int y) {
  *   Rating: 1
  */
 int tmin(void) {
-
-  return 2;
-
+  /*
+   * minimum two's complement integer (n bits) equal:
+   *         -(2^(n-1)) = 1 << (n-1)
+   *
+   * minimum 32 bits integer:
+   * \ 1 bit /
+   *     |
+   *     1000000...000000
+   *       \  31 bits  /
+   */
+  return 1 << 31;
 }
 //2
 /*
@@ -165,7 +181,21 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  return 2;
+  /*
+   * maximum 32 bits integer:
+   * \ 1 bit /                               \ 1 bit /
+   *     |                        x+x+1          |
+   *     0111111...111111      ==========>       1111111...111111
+   *       \  31 bits  /        x<<1 + 1           \  31 bits  /
+   *
+   * -1(exclude):
+   *                                         (overflow)
+   * \ 1 bit /                               \ 1 bit /
+   *     |                        x+x+1          |
+   *     1111111...111111      ==========>      (1)111111...111111
+   *       \  31 bits  /        x<<1 + 1            \  32 bits  /
+   */
+  return !(~(x+x+1) | !(~x));
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -176,7 +206,16 @@ int isTmax(int x) {
  *   Rating: 2
  */
 int allOddBits(int x) {
-  return 2;
+  /*
+   * 0xAA = 10101010 (maximum allowed all odd-numbered bits integer constant)
+   * mask = 0xAAAAAAAA = 1010...1010
+   *                     \ 32 bits /
+   *
+   * [mask&x]: reserve all odd-numbered bits in x
+   * x==y -> !(x^y)
+   */
+  int mask = ((0xAA<<8 | 0xAA) << 16) | (0xAA<<8 | 0xAA);
+  return !((mask&x) ^ mask);
 }
 /* 
  * negate - return -x 
@@ -186,7 +225,30 @@ int allOddBits(int x) {
  *   Rating: 2
  */
 int negate(int x) {
-  return 2;
+  /*
+   * postive number:
+   * \ 1 bit /                          \ 1 bit /
+   *     |                      ~x          |
+   *     0000000...000001    =======>       1111111...111110
+   *       \  31 bits  /                      \  31 bits  /
+   *
+   * ~x = -2^31 + 2^31 - 1 - x
+   *    = -1 - x
+   *
+   * 0:
+   * ~x = 0xFFFFFFFF = -1 = -1 - x
+   *
+   * negative number:
+   * \ 1 bit /                          \ 1 bit /
+   *     |                      ~x          |
+   *     1000000...000001    =======>       0111111...111110
+   *       \   p part  /                      \  31 bits  /
+   * x = -2^31 + p
+   * ~x = 2^31 - 1 - p
+   *    = 2^31 - 1 - x + (-2^31)
+   *    = -1 - x
+   */
+  return ~x + 1;
 }
 //3
 /* 
@@ -199,7 +261,16 @@ int negate(int x) {
  *   Rating: 3
  */
 int isAsciiDigit(int x) {
-  return 2;
+  /*
+   * low bound:  0x30(hex) = 110000(bin)
+   * high bound: 0x39(hex) = 111001(bin)
+   *
+   * cond1: two lead bits should equal 11(0x3)
+   * cond2: rest four bits(R) between 0x0 ~ 0x9, so R - 0xA < 0
+   */
+  int cond1 = !(x>>4 ^ 0x3);
+  int cond2 = ((x&0xF) + (~0xA)+1) >> 31;
+  return cond1 & cond2;
 }
 /* 
  * conditional - same as x ? y : z 
@@ -209,7 +280,17 @@ int isAsciiDigit(int x) {
  *   Rating: 3
  */
 int conditional(int x, int y, int z) {
-  return 2;
+  /*
+   * use !!x to set all non-zero numbers to 1
+   *
+   * non-zero: mask = 1 << 31 >> 31 = 1111...1111 (32 bits)
+   * zero:     mask = 0 << 31 >> 31 = 0000...0000 (32 bits)
+   *
+   * x & 1111...1111 = x
+   * x & 0000...0000 = 0
+   */
+  int mask = !!x << 31 >> 31;
+  return (mask&y) | (~mask&z);
 }
 /* 
  * isLessOrEqual - if x <= y  then return 1, else return 0 
@@ -219,7 +300,24 @@ int conditional(int x, int y, int z) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+  /*
+   * x > 0, y > 0 or x < 0, y < 0:
+   * in this case y - x never be overflowed
+   * x <= y -> y - x > 0
+   *
+   * x = 0, y = 0:
+   * x - y == 0
+   *
+   * otherwise:
+   * when x < 0, y > 0 will be return 1
+   */
+  int x_sign = x>>31 & 1;
+  int y_sign = y>>31 & 1;
+  int cond1 = x_sign & !y_sign;
+  // cond2 = !(x_sign ^ y_sign) & !((~x+1+y) >> 31)
+  // De Morgan laws
+  int cond2 = !((x_sign ^ y_sign) | ((~x+1+y) >> 31));
+  return cond1 | cond2;
 }
 //4
 /* 
@@ -231,7 +329,33 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4 
  */
 int logicalNeg(int x) {
-  return 2;
+  /*
+   * for all non-zero signed numbers, at least one of the sign
+   * bit of x and -x is 1
+   *
+   * non-zero:
+   * \ sign bit /                        \ sign bit /
+   *      |                    >> 31          |
+   *      1bbbbbb...bbbbbb    =======>        1111111...111111
+   *        \  31 bits  /                       \  31 bits  /
+   *
+   * \ sign bit /                        \ overflow /
+   *      |                      +1          |
+   *      1111111...111111    =======>       10000000...000000
+   *        \  31 bits  /                      \   32 bits  /
+   *
+   * zero:
+   * \ sign bit /                        \ sign bit /
+   *      |                    >> 31          |
+   *      0000000...000000    =======>        0000000...000000
+   *        \  31 bits  /                       \  31 bits  /
+   *
+   * \ sign bit /                        \ sign bit /
+   *      |                      +1           |
+   *      0000000...000000    =======>        0000000...000001
+   *        \  31 bits  /                       \  31 bits  /
+   */
+  return (((~x+1)|x) >> 31) + 1;
 }
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
@@ -246,7 +370,26 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+  /*
+   * if x is negative, reverse all bit, and simulate
+   * binary serach recursive function
+   */
+  int mask = x >> 31;
+  x = (mask&~x) | (~mask&x);
+  // if the left half bits is not equal to 0, the right half is
+  // reversed, and then continue searching the left half, and vice versa
+  int b16 = !!(x>>16) << 4;
+  x >>= b16;
+  int b8  = !!(x>>8) << 3;
+  x >>= b8;
+  int b4  = !!(x>>4) << 2;
+  x >>= b4;
+  int b2  = !!(x>>2) << 1;
+  x >>= b2;
+  int b1  = !!(x>>1);
+  x >>= b1;
+  int b0 = x;
+  return b16 + b8 + b4 + b2 + b1 + b0 + 1;
 }
 //float
 /* 
