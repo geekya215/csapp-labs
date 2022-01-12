@@ -404,7 +404,16 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  int sign = uf & 0x80000000;
+  int exp = (uf & 0x7F800000) >> 23;
+  int frac = uf & 0x7FFFFF;
+  // if argument is NaN or infinity
+  if (exp == 0xFF)
+    return uf;
+  // if argument is denorm, left shift 1 bit
+  if (exp == 0)
+    return sign | frac << 1;
+  return sign | ((exp+1) << 23) | frac;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -419,7 +428,25 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  int sign = uf>>31 & 1;
+  int exp = (uf & 0x7F800000) >> 23;
+  int frac = uf & 0x7FFFFF;
+  int E = exp - 127;
+  // denorm or out of range
+  if (exp == 0xFF || E > 31)
+    return 0x80000000u;
+  // denorm or to small
+  if (!exp || E < 0)
+    return 0;
+  int step = 23 - E;
+  int M = frac | 0x800000;
+  int ans;
+  if (step > 0) {
+    ans = M >> step;
+  } else {
+    ans = M << step;
+  }
+  return sign ? -ans : ans;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -435,5 +462,10 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  int exp = x+0x7f;
+  if (exp >= 0xFF)
+    return 0x7F800000;
+  if (exp <= 0)
+    return 0;
+  return exp << 23;
 }
